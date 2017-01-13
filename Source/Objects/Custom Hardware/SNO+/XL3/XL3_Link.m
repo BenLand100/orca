@@ -40,17 +40,6 @@ NSString* XL3_LinkAutoConnectChanged    = @"XL3_LinkAutoConnectChanged";
 
 
 #define kCmdArrayHighWater 1000
-#define kBundleBufferSize 10000 //PMTMegaBundles
-
-
-@interface XL3_Link (private)
-- (void) allocBufferWithSize:(unsigned) aBufferSize;
-- (void) releaseBuffer;
-- (BOOL) writeBundle:(char*)someBytes length:(unsigned)numBytes version:(unsigned)aRev packetNum:(unsigned short)packetNum;
-- (unsigned) bundleBufferSize;
-- (unsigned) bundleReadMark;
-- (unsigned) bundleWriteMark;
-@end
 
 
 @implementation XL3_Link
@@ -115,34 +104,6 @@ readFifoFlag = _readFifoFlag;
 - (void) awakeAfterDocumentLoaded
 {
     if (autoConnect) [self connectSocket];
-}
-
-#pragma mark •••DataTaker Helpers
-- (BOOL) bundleAvailable
-{
-	return bundleReadMark != bundleWriteMark || bundleFreeSpace == 0;
-}
-
-- (NSMutableData*) readNextBundle
-{
-    NSMutableData* theBlock = nil;
-
-    [bundleBufferLock lock];
-    if(bundleWriteMark != bundleReadMark || bundleFreeSpace == 0){
-        theBlock = (NSMutableData*)(*(dataPtr+bundleReadMark));
-        /*
-        if (!theBlock) {
-            NSLog(@"too bad\n");
-        }
-        if ([theBlock length] < 16) {
-            NSLog(@"even worse\n");
-        }
-         */
-        bundleReadMark = (bundleReadMark + 1) % bundleBufferSize;
-        bundleFreeSpace++; 
-    }
-    [bundleBufferLock unlock];
-    return theBlock;
 }
 
 #pragma mark •••Archival
@@ -784,6 +745,7 @@ static void SwapLongBlock(void* p, int32_t n)
 
 /**
  * Runs as a unique thread for each XL3 with the lifetime of the XL3 connection.
+ * Started with connectSocket.
  *
  * Pulls connection information for the XL3 server from the SNOP model and 
  * attempts a connection after all threads waiting on responses from the 
@@ -908,28 +870,9 @@ static void SwapLongBlock(void* p, int32_t n)
             t0 = time(0);
             
             switch (((XL3Packet*) aPacket)->header.packetType) {
-                case MEGA_BUNDLE_ID: {
-                    //packetNum?
-                    unsigned short packetNum = ((XL3Packet*) aPacket)->header.packetNum;
-                    if (needToSwap) packetNum = swapShort(packetNum);
-                    if (((XL3Packet*) aPacket)->header.numBundles != 0) {
-                        [self writeBundle:((XL3Packet*) aPacket)->payload length:((XL3Packet*) aPacket)->header.numBundles * 12 version:0 packetNum:packetNum];
-                    }
-                    else {
-                        unsigned int num_bytes = *(unsigned int*)(((XL3Packet*)aPacket)->payload);
-                        if (needToSwap) num_bytes = swapLong(num_bytes);
-                        num_bytes &= 0xffffff;
-                        if (num_bytes == 0) {
-                            NSLog(@"%@ megabundle with zero length ignored\n", [self crateName]);
-                        }
-                        num_bytes = (num_bytes + 3) * 4;
-                        if (num_bytes > XL3_PAYLOAD_SIZE) {
-                            num_bytes = XL3_PAYLOAD_SIZE;
-                        }
-                        [self writeBundle:((XL3Packet*) aPacket)->payload length:num_bytes version:1 packetNum:packetNum];
-                    }
-                    bundle_count++;
-                } break;
+                case MEGA_BUNDLE_ID: 
+                    NSLogColor([NSColor redColor],@"ORCA received a MEGABUNDLE from %@ - this should not happen!\n", [self crateName]);
+                    break;
                 
                 case PING_ID: {
                     (((XL3Packet*) aPacket)->header.packetType = PONG_ID);
@@ -1211,60 +1154,3 @@ static void SwapLongBlock(void* p, int32_t n)
 
 @end
 
-
-@implementation XL3_Link (private)
-
-
-- (void) allocBufferWithSize:(unsigned) aBufferSize;
-{
-	bundleBufferSize = aBufferSize;
-	bundleBuffer	 = [[NSMutableData alloc] initWithLength:bundleBufferSize * sizeof(long)];
-	[bundleBuffer setLength:bundleBufferSize * sizeof(long)];
-	bundleBufferLock = [[NSLock alloc] init];
-	bundleFreeSpace	 = bundleBufferSize;
-	bundleReadMark	 = 0;
-	bundleWriteMark	 = 0;
-	dataPtr			 = (unsigned long*)[bundleBuffer mutableBytes];
-}
-
-- (void) releaseBuffer
-{
-	[bundleBuffer release]; bundleBuffer = nil;
-    [bundleBufferLock release];
-}
-
-- (unsigned) bundleBufferSize
-{
-	return bundleBufferSize;
-}
-
-- (unsigned) bundleReadMark
-{
-	return bundleReadMark;
-}
-
-- (unsigned) bundleWriteMark
-{
-	return bundleWriteMark;
-}
-
-- (BOOL) writeBundle:(char*)someBytes length:(unsigned)numBytes version:(unsigned)aRev packetNum:(unsigned short)packetNum
-{
-    [bundleBufferLock lock];
-    BOOL full = NO;
-    if(bundleFreeSpace > 0){
-        NSMutableData* theData = [[NSMutableData alloc] initWithLength:numBytes + 8];
-        unsigned int rev = aRev << 5;
-        rev |= packetNum << 16;
-        [theData replaceBytesInRange:NSMakeRange(4, 4) withBytes:&rev length:4];
-        [theData replaceBytesInRange:NSMakeRange(8, numBytes) withBytes:someBytes length:numBytes];
-        *(dataPtr+bundleWriteMark) = (unsigned long)theData;
-        bundleWriteMark = (bundleWriteMark+1)%bundleBufferSize;	//move the write mark ahead 
-        bundleFreeSpace--; 
-    }
-    else full = YES;
-    [bundleBufferLock unlock];
-    return full;
-}
-
-@end

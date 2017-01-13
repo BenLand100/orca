@@ -57,20 +57,6 @@ typedef enum eXL3_ConnectStates {
     NSDate*     _fifoTimeStamp;     //time stamp when fifoStatus received
     BOOL _readFifoFlag;             //a flag check by Xl3Model::takeData;
     unsigned long _fifoBundle[16];  //an array to enter data stream
-    
-@private
-    //memory optimized circular buffer, motivated by ORSafeCirularBuffer. Thanks Mark.
-    //XL3_Link allocates and pushes megabundles as NSData, cb stores pointers to NSData*
-    //ORXL3_Model takeData memcopies into the data stream and releases
-    //it's not design to buffer, it's used to reverse the data stream direction
-    //if we went with ORSafeCircularBuffer the 20 pool releases caused noticable interruptions
-    NSMutableData*  bundleBuffer;
-    unsigned long*	dataPtr;
-    unsigned        bundleBufferSize;
-    unsigned        bundleReadMark;
-    unsigned        bundleWriteMark;
-    NSLock*         bundleBufferLock;
-    long            bundleFreeSpace;
 }
 
 @property (assign,nonatomic) BOOL isConnected;
@@ -84,11 +70,7 @@ typedef enum eXL3_ConnectStates {
 - (id)   init;
 - (void) dealloc;
 - (void) wakeUp; 
-- (void) sleep ;	
-
-#pragma mark •••DataTaker Helpers
-- (BOOL) bundleAvailable;
-- (NSMutableData*) readNextBundle;
+- (void) sleep ;
 
 #pragma mark •••Archival
 - (id)initWithCoder:(NSCoder*)decoder;
