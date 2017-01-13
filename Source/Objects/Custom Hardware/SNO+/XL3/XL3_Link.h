@@ -30,7 +30,7 @@ typedef enum eXL3_ConnectStates {
 
 @interface XL3_Link : ORGroup
 {
-	int         workingSocket;
+	int         workingSocket;      //handle to the current socket connection
 	NSLock*		commandSocketLock;	//avoids clashes between commands. Wrap an XL3 packet write,
                                     //so you know a possible write error comes from your command.
 	NSLock*		coreSocketLock;		//protects the socket, to guarantee that full packet is read/written
@@ -49,7 +49,7 @@ typedef enum eXL3_ConnectStates {
 	int		connectState;
 	int		_errorTimeOut;
 	NSDate*	timeConnected;
-	NSMutableArray*	cmdArray;
+	NSMutableArray*	cmdArray;       //Array of cmd packet responses received from XL3 but not yet dispatched to requesters
 	uint16_t num_cmd_packets;
 	unsigned long long num_dat_packets;
 	XL3Packet	aMultiCmdPacket;
@@ -95,8 +95,6 @@ typedef enum eXL3_ConnectStates {
 - (void)encodeWithCoder:(NSCoder*)encoder;
 
 #pragma mark •••Accessors
-- (int)  workingSocket;
-- (void) setWorkingSocket:(int) aSocket;
 - (BOOL) needToSwap;
 - (void) setNeedToSwap;
 - (int)  connectState;
@@ -130,7 +128,6 @@ typedef enum eXL3_ConnectStates {
 - (void) connectToPort;
 - (void) writePacket:(char*)aPacket;
 - (void) readPacket:(char*)aPacket;
-- (BOOL) canWriteTo:(int)aSocket;
 
 @end
 
