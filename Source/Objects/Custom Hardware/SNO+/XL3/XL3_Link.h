@@ -40,7 +40,7 @@ typedef enum eXL3_ConnectStates {
                                     //and XL3Model pulling/distributing the responses
     int         pendingThreads;     //Number of threads waiting on a response
     NSLock*     connectionLock;     //Must be held before modifying pendingThreads
-	BOOL		needToSwap;
+	BOOL		needToSwap;         //Whether byte order needs swapping to communicate with the XL3
 	NSString*	IPNumber;
 	NSString*	crateName;
 	unsigned long	portNumber;
@@ -50,7 +50,7 @@ typedef enum eXL3_ConnectStates {
 	int		_errorTimeOut;
 	NSDate*	timeConnected;
 	NSMutableArray*	cmdArray;       //Array of cmd packet responses received from XL3 but not yet dispatched to requesters
-	uint16_t num_cmd_packets;
+	uint16_t numPackets;
 	unsigned long long num_dat_packets;
 	XL3Packet	aMultiCmdPacket;
     NSArray*    fifoStatus;         //array of 16 diffs between write and read FEC pointers, NSNumbers for MORCA
@@ -108,8 +108,8 @@ typedef enum eXL3_ConnectStates {
 - (void) connectSocket;
 - (void) disconnectSocket;
 - (void) connectToPort;
-- (void) writePacket:(char*)aPacket;
-- (void) readPacket:(char*)aPacket;
+- (void) writePacket:(XL3Packet*)aPacket;
+- (void) readPacket:(XL3Packet*)aPacket;
 
 @end
 
