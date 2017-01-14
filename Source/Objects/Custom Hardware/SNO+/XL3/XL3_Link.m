@@ -60,7 +60,6 @@ readFifoFlag = _readFifoFlag;
 	[self setNeedToSwap];
 	connectState = kDisconnected;
 	cmdArray = [[NSMutableArray alloc] init];
-    [self allocBufferWithSize:kBundleBufferSize];
 	numPackets = 0;
 	return self;
 }
@@ -75,7 +74,6 @@ readFifoFlag = _readFifoFlag;
 		[cmdArray release];
 		cmdArray = nil;
 	}
-    if (bundleBuffer) [self releaseBuffer];
 
     if (fifoStatus) {
         [fifoStatus release];
@@ -121,7 +119,6 @@ readFifoFlag = _readFifoFlag;
 	coreSocketLock = [[NSLock alloc] init];
 	cmdArrayLock = [[NSLock alloc] init];
 	cmdArray = [[NSMutableArray alloc] init];
-    [self allocBufferWithSize:kBundleBufferSize];
 	
 	connectState = kDisconnected;
     pendingThreads = 0;
@@ -467,7 +464,7 @@ readFifoFlag = _readFifoFlag;
 	[commandSocketLock lock];
 	@try {
 		[self writePacket:xl3Packet];
-		unsigned short packetNum = needToSwap ? swapShort(xl3Packet.header.packetNum) : xl3Packet.header.packetNum;
+		unsigned short packetNum = needToSwap ? swapShort(xl3Packet->header.packetNum) : xl3Packet->header.packetNum;
 		[self readXL3Packet:xl3Packet withPacketType:packetType andPacketNum:packetNum];
 	}
 	@catch (NSException* localException) {
@@ -821,8 +818,7 @@ static void SwapLongBlock(void* p, int32_t n)
 	tv.tv_sec  = 0;
 	tv.tv_usec = 2000;
 
-	XL3Packet xl3Packet;
-	unsigned long bundle_count = 0;
+	XL3Packet xl3Packet;	
 
 	time_t t0 = time(0);
     BOOL go = [self isConnected];
@@ -868,7 +864,7 @@ static void SwapLongBlock(void* p, int32_t n)
                     (xl3Packet.header.packetType = PONG_ID);
                     //get data
                     if (needToSwap) SwapLongBlock(&xl3Packet.payload, 17);
-                    [self copyFifoStatus:(int32_t*)(&xl3packet.payload];
+                    [self copyFifoStatus:(int32_t*)xl3Packet.payload];
                     [commandSocketLock lock];
                     @try {
                         [self writePacket:&xl3Packet];
@@ -921,7 +917,7 @@ static void SwapLongBlock(void* p, int32_t n)
                     NSMutableString* msg = [NSMutableString stringWithFormat:@"%@ screwed for slot:\n", [self crateName]];
                     unsigned int i, error;
                     for (i = 0; i < 16; i++) {
-                        error = ((ScrewedPacket)xl3Packet.payload).fecScrewed[i];
+                        error = ((ScrewedPacket*)xl3Packet.payload)->fecScrewed[i];
                         if (needToSwap) error = swapLong(error);
                         [msg appendFormat:@"%2d: 0x%x\n", i, error];
                     }
@@ -1018,9 +1014,9 @@ static void SwapLongBlock(void* p, int32_t n)
 
     [coreSocketLock lock];
     if (needToSwap) {
-        xl3Packet.header.packetNum = swapShort(numPackets++);
+        xl3Packet->header.packetNum = swapShort(numPackets++);
     } else {
-        xl3Packet.header.packetNum = numPackets++;
+        xl3Packet->header.packetNum = numPackets++;
     }
     char *aPacket = (char*)xl3Packet;
 	@try {
